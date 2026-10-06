@@ -9,6 +9,7 @@ let nextButton;
 let restartButton;          
 let isLoading = true;       
 let errorMessage = "";      // 用來顯示錯誤訊息
+let canvas;                 // 宣告畫布全域變數
 
 // 你的 Google 試算表 CSV 連結（加上時間戳記防快取）
 const sheetCSVUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS2PuVttEbQSfrgiEG_A7GgFvVtsN9nG-RcG5p59AnpJla6C-ORQtN2MWpjbPYjVrYaQFMpRCH2T25D/pub?output=csv&t=' + Date.now();
@@ -36,7 +37,7 @@ function preload() {
 function setup() {
   let canvasWidth = min(windowWidth - 40, 650);
   let canvasHeight = min(windowHeight - 120, 520);
-  let canvas = createCanvas(canvasWidth, canvasHeight);
+  canvas = createCanvas(canvasWidth, canvasHeight);
   canvas.parent("quiz-container");
  
   createOptionButtons();
@@ -106,6 +107,7 @@ function initQuiz() {
   if (quizQuestions.length > 0) {
     resetOptionButtonStyles();
     updateButtonText(0);
+    updateLayout(); // 確保抽完題後重新計算排版
   }
 }
 
@@ -158,22 +160,25 @@ function drawQuizScreen() {
   let q = quizQuestions[currentQuestion];
   let isMobile = width < 480;
 
+  // 1. 顯示題目進度
   fill(148, 163, 184);
   noStroke();
   textSize(isMobile ? 14 : 16);
   textAlign(LEFT, TOP);
   text(`題目 ${currentQuestion + 1} / ${quizQuestions.length}`, 24, 20);
 
+  // 2. 顯示題目內容（支援自動換行）
   fill(255);
-  textSize(isMobile ? 22 : 26);
+  textSize(isMobile ? 20 : 24);
   textStyle(BOLD);
-  text(q.prompt, 24, 55, width - 48);
+  text(q.prompt, 24, 50, width - 48);
 
+  // 3. 答對/答錯回饋訊息
   if (isAnswered) {
-    textSize(isMobile ? 15 : 17);
+    textSize(isMobile ? 14 : 16);
     textStyle(BOLD);
     let labels = ["A", "B", "C", "D"];
-    let feedbackY = height - 110;
+    let feedbackY = height - 55; // 放在按鈕下方、畫布底部上方
    
     if (selectedOption === q.correct) {
       fill(74, 222, 128);
@@ -233,12 +238,14 @@ function createOptionButtons() {
 }
 
 function updateButtonText(qIndex) {
+  if (quizQuestions.length === 0 || !quizQuestions[qIndex]) return;
   let q = quizQuestions[qIndex];
   let labels = ["A", "B", "C", "D"];
   for (let i = 0; i < optionButtons.length; i++) {
     optionButtons[i].html(`${labels[i]}: ${q.options[i]}`);
     optionButtons[i].show();
   }
+  updateLayout(); // 更新文字後自動重新計算版面
 }
 
 function resetOptionButtonStyles() {
@@ -248,38 +255,59 @@ function resetOptionButtonStyles() {
   }
 }
 
+// 核心：自動適應手機、平板、電腦，並動態推開選項避免遮擋
 function updateLayout() {
+  if (!canvas) return; // 防呆機制
+
+  // 根據視窗大小自動調整畫布尺寸（手機、平板、電腦共用一份彈性佈局）
   let canvasWidth = constrain(windowWidth - 40, 320, 650);
-  let canvasHeight = constrain(windowHeight - 140, 420, 540);
+  let canvasHeight = constrain(windowHeight - 140, 480, 620);
   resizeCanvas(canvasWidth, canvasHeight);
 
   let isMobile = canvasWidth < 480;
   let btnWidth = canvasWidth - 48;
-  let btnHeight = isMobile ? 42 : 48;
-  let startY = isMobile ? 120 : 135;
-  let gap = isMobile ? 50 : 56;
+  let btnHeight = isMobile ? 40 : 44;
+  let gap = isMobile ? 48 : 52; // 每個選項按鈕間距
 
   let canvasX = (windowWidth - canvasWidth) / 2;
   let canvasY = (windowHeight - canvasHeight) / 2 - 20;
 
+  // 【關鍵修正】動態計算當前題目的實際高度，自動將選項往下推，絕對不遮擋！
+  let startY = isMobile ? 100 : 110;
+  if (quizQuestions.length > 0 && currentQuestion < quizQuestions.length) {
+    let q = quizQuestions[currentQuestion];
+    let fontSize = isMobile ? 20 : 24;
+    // 依據提示文字長度與畫布寬度估算換行行數
+    let approxRows = Math.ceil((q.prompt.length * fontSize) / (canvasWidth - 48));
+    let promptHeight = max(35, approxRows * (fontSize + 6)); 
+    startY = 50 + promptHeight + 15; 
+  }
+
+  // 設定 4 個選項按鈕的位置
   for (let i = 0; i < optionButtons.length; i++) {
     optionButtons[i].size(btnWidth, btnHeight);
     optionButtons[i].position(canvasX + 24, canvasY + startY + (i * gap));
-    optionButtons[i].style('font-size', isMobile ? '14px' : '16px');
-    optionButtons[i].style('padding-left', isMobile ? '12px' : '20px');
+    optionButtons[i].style('font-size', isMobile ? '14px' : '15px');
+    optionButtons[i].style('padding-left', isMobile ? '12px' : '16px');
   }
 
-  let nBtnWidth = isMobile ? canvasWidth - 48 : 200;
-  let nBtnHeight = isMobile ? 44 : 48;
-  nextButton.size(nBtnWidth, nBtnHeight);
-  nextButton.position(canvasX + 24, canvasY + canvasHeight - 65);
-  nextButton.style('font-size', isMobile ? '15px' : '16px');
+  // 設定「下一題」按鈕位置
+  if (nextButton) {
+    let nBtnWidth = isMobile ? canvasWidth - 48 : 200;
+    let nBtnHeight = isMobile ? 42 : 46;
+    nextButton.size(nBtnWidth, nBtnHeight);
+    nextButton.position(canvasX + 24, canvasY + canvasHeight - 50);
+    nextButton.style('font-size', isMobile ? '15px' : '16px');
+  }
 
-  let rBtnWidth = isMobile ? 160 : 200;
-  let rBtnHeight = isMobile ? 44 : 50;
-  restartButton.size(rBtnWidth, rBtnHeight);
-  restartButton.position(windowWidth / 2 - rBtnWidth / 2, canvasY + canvasHeight / 2 + 50);
-  restartButton.style('font-size', isMobile ? '16px' : '18px');
+  // 設定「重新測驗」按鈕位置
+  if (restartButton) {
+    let rBtnWidth = isMobile ? 160 : 200;
+    let rBtnHeight = isMobile ? 44 : 50;
+    restartButton.size(rBtnWidth, rBtnHeight);
+    restartButton.position(windowWidth / 2 - rBtnWidth / 2, canvasY + canvasHeight / 2 + 50);
+    restartButton.style('font-size', isMobile ? '16px' : '18px');
+  }
 }
 
 function windowResized() {
@@ -287,6 +315,7 @@ function windowResized() {
 }
 
 function handleAnswer(choice) {
+  if (isAnswered || quizQuestions.length === 0) logicalCheck = true;
   if (isAnswered || quizQuestions.length === 0) return;
  
   isAnswered = true;
