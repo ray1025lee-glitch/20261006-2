@@ -10,9 +10,10 @@ let restartButton;
 let isLoading = true;       
 let errorMessage = "";      // 用來顯示錯誤訊息
 
-// 你的 Google 試算表 CSV 連結
-const sheetCSVUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS2PuVttEbQSfrgiEG_A7GgFvVtsN9nG-RcG5p59AnpJla6C-ORQtN2MWpjbPYjVrYaQFMpRCH2T25D/pub?output=csv';function preload() {
-  // 使用 p5.js 載入表格，並加入詳細的錯誤捕捉
+// 你的 Google 試算表 CSV 連結（加上時間戳記防快取）
+const sheetCSVUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS2PuVttEbQSfrgiEG_A7GgFvVtsN9nG-RcG5p59AnpJla6C-ORQtN2MWpjbPYjVrYaQFMpRCH2T25D/pub?output=csv&t=' + Date.now();
+
+function preload() {
   loadTable(sheetCSVUrl, 'csv', 'header', 
     (table) => {
       allQuestions = table;
@@ -38,10 +39,8 @@ function setup() {
   let canvas = createCanvas(canvasWidth, canvasHeight);
   canvas.parent("quiz-container");
  
-  // 初始化選項按鈕
   createOptionButtons();
  
-  // 初始化「下一題」按鈕
   nextButton = createButton("進入下一題");
   nextButton.style('background-color', '#4f46e5');
   nextButton.style('color', '#ffffff');
@@ -55,7 +54,6 @@ function setup() {
   nextButton.mouseOver(() => nextButton.style('background-color', '#4338ca'));
   nextButton.mouseOut(() => nextButton.style('background-color', '#4f46e5'));
 
-  // 初始化「重新測驗」按鈕
   restartButton = createButton("重新測驗");
   restartButton.style('background-color', '#4f46e5');
   restartButton.style('color', '#ffffff');
@@ -72,7 +70,6 @@ function setup() {
   updateLayout();
 }
 
-// 隨機抽題邏輯
 function initQuiz() {
   let rows = allQuestions.getRows();
   let tempQuestions = [];
@@ -113,7 +110,7 @@ function initQuiz() {
 }
 
 function draw() {
-  background(15, 23, 42); // Slate-900 背景
+  background(15, 23, 42); 
   textFont('Noto Serif TC');
 
   if (isLoading) {
@@ -121,18 +118,30 @@ function draw() {
     textSize(18);
     textAlign(CENTER, CENTER);
     text("正在從 Google 試算表載入題庫...", width / 2, height / 2);
+    for (let btn of optionButtons) {
+      btn.hide();
+    }
     return;
   }
 
   if (errorMessage !== "") {
-    fill(248, 113, 113); // 紅色錯誤提示
+    fill(248, 113, 113);
     textSize(16);
     textAlign(CENTER, CENTER);
     text(errorMessage, width / 2, height / 2);
+    for (let btn of optionButtons) {
+      btn.hide();
+    }
     return;
   }
 
   if (currentQuestion < quizQuestions.length) {
+    if (quizQuestions.length > 0 && optionButtons.length === 4) {
+      let currentLabelCheck = optionButtons[0].html();
+      if (currentLabelCheck.endsWith(": ") || currentLabelCheck === "") {
+        updateButtonText(currentQuestion);
+      }
+    }
     drawQuizScreen();
     restartButton.hide();
   } else {
@@ -145,7 +154,6 @@ function draw() {
   }
 }
 
-// 繪製測驗畫面
 function drawQuizScreen() {
   let q = quizQuestions[currentQuestion];
   let isMobile = width < 480;
@@ -177,7 +185,6 @@ function drawQuizScreen() {
   }
 }
 
-// 繪製結算畫面
 function drawScoreScreen() {
   let isMobile = width < 480;
 
@@ -196,7 +203,6 @@ function drawScoreScreen() {
   text("是否要重新測驗？", width / 2, height / 2 + 25);
 }
 
-// 建立四個選項按鈕
 function createOptionButtons() {
   let labels = ["A", "B", "C", "D"];
 
@@ -210,6 +216,7 @@ function createOptionButtons() {
     btn.style('font-weight', '600');
     btn.style('cursor', 'pointer');
     btn.style('text-align', 'left');
+    btn.hide();
    
     let index = i;
     btn.mousePressed(() => handleAnswer(index));
@@ -264,7 +271,7 @@ function updateLayout() {
 
   let nBtnWidth = isMobile ? canvasWidth - 48 : 200;
   let nBtnHeight = isMobile ? 44 : 48;
- nextButton.size(nBtnWidth, nBtnHeight);
+  nextButton.size(nBtnWidth, nBtnHeight);
   nextButton.position(canvasX + 24, canvasY + canvasHeight - 65);
   nextButton.style('font-size', isMobile ? '15px' : '16px');
 
